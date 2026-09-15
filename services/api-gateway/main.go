@@ -14,7 +14,9 @@ var (
 func main() {
 	log.Println("Starting API Gateway")
 
-	http.HandleFunc("POST /trip/preview", handleTripPreview)
+	http.HandleFunc("POST /trip/preview", enableCors(handleTripPreview))
+	http.HandleFunc("/ws/drivers", handleDriversWebSocket)
+	http.HandleFunc("/ws/riders", handleRidersWebSocket)
 
 	http.ListenAndServe(httpAddr, nil)
 }
