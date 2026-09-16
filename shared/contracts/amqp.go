@@ -15,7 +15,7 @@ const (
 	TripEventDriverNotInterested = "trip.event.driver_not_interested"
 
 	// Driver commands (driver.cmd.*)
-	DriverCmdTripRequest = "driver.cmd.trip_request"d
+	DriverCmdTripRequest = "driver.cmd.trip_request"
 	DriverCmdTripAccept  = "driver.cmd.trip_accept"
 	DriverCmdTripDecline = "driver.cmd.trip_decline"
 	DriverCmdLocation    = "driver.cmd.location"
@@ -30,4 +30,3 @@ const (
 	// Payment commands (payment.cmd.*)
 	PaymentCmdCreateSession = "payment.cmd.create_session"
 )
-d

@@ -1,15 +1,16 @@
 package main
 
 import (
-	"context" // cria um contexto para controlar o ciclo de vida da aplicação
-	"log"     // escreve logs no terminal
-	"net"     // abre uma porta de rede
-	"os"      // lê sinais do sistema
+	"context"
+	"log"
+	"net"
+	"os"
 	"os/signal"
-	"ride-sharing/shared/env" // pega variáveis de ambiente com valor padrão
-	"syscall"                 // identifica sinais como SIGTERM
+	"ride-sharing/services/trip-service/internal/infrastructure/grpc"
+	"ride-sharing/shared/env"
+	"syscall"
 
-	"google.golang.org/grpc" // sobe o servidor gRPC
+	grpc_server "google.golang.org/grpc"
 )
 
 var (
@@ -34,8 +35,9 @@ func main() {
 		log.Fatalf("failed to listen: %v", err) // encerra se não conseguir abrir a porta
 	}
 
-	grpcServer := grpc.NewServer() // cria o servidor gRPC
-	// TODO: initialize the grpc handler implementation
+	grpcServer := grpc_server.NewServer() // cria o servidor gRPC
+	// TODO: passar o service real
+	grpc.NewGrpcHandler(grpcServer, nil)
 
 	log.Println("Starting gRPC Server [Trip Service] on port 9093") // registra a porta usada
 
