@@ -40,12 +40,24 @@ func (h *GrpcHandler) PreviewTrip(ctx context.Context, request *pb.PreviewTripRe
 		Longitude: destination.Longitude,
 	}
 
+	userID := request.GetUserID()
+
 	route, err := h.service.GetRoute(ctx, pickupCords, destinationCords)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to fetch route: %w", err)
 	}
 
+	//faz a estimativa do preco da corrida baseado na rota( ex: distancia)
+	estimatedFares := h.service.EstimatePackagesPriceWithRoute(route)
+
+	//salva o preco da corrida criada
+	fares, err := h.service.GenerateTripFares(ctx, estimatedFares, userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to generate trip fares: %w", err)
+	}
+
 	return &pb.PreviewTripResponse{
-		Route: route.ToProto(),
+		Route:     route.ToProto(),
+		RideFares: domain.ToRideFaresProto(fares),
 	}, nil
 }
