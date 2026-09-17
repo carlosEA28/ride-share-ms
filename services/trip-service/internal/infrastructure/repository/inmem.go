@@ -26,7 +26,7 @@ func (r *InmemRepository) GetTripByID(ctx context.Context, id string) (*domain.T
 	return trip, nil
 }
 
-func (r *InmemRepository) GetRideFareByID(ctx context.Context, id string) (*domain.RideFareModel, error) {
+func (r *InmemRepository) GetFareByID(ctx context.Context, id string) (*domain.RideFareModel, error) {
 	fare, exist := r.rideFares[id]
 	if !exist {
 		return nil, fmt.Errorf("fare does not exist with ID: %s", id)

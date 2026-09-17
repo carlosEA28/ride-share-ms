@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"ride-sharing/services/trip-service/internal/infrastructure/grpc"
+	"ride-sharing/services/trip-service/internal/infrastructure/repository"
+	"ride-sharing/services/trip-service/internal/service"
 	"ride-sharing/shared/env"
 	"syscall"
 
@@ -36,8 +38,10 @@ func main() {
 	}
 
 	grpcServer := grpc_server.NewServer() // cria o servidor gRPC
-	// TODO: passar o service real
-	grpc.NewGrpcHandler(grpcServer, nil)
+
+	repo := repository.NewInmemRepository()
+	svc := service.NewService(repo)
+	grpc.NewGrpcHandler(grpcServer, svc)
 
 	log.Println("Starting gRPC Server [Trip Service] on port 9093") // registra a porta usada
 
