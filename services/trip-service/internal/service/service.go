@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"ride-sharing/services/trip-service/internal/domain"
+	tripTypes "ride-sharing/services/trip-service/pkg/types"
 	"ride-sharing/shared/types"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -21,6 +22,7 @@ func NewService(repo domain.TripRepository) *service {
 		repo: repo,
 	}
 }
+
 func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*domain.Trip, error) {
 	t := &domain.TripModel{
 		ID:       primitive.NewObjectID(),
@@ -63,4 +65,73 @@ func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coord
 	}
 
 	return &routeResponse, nil
+}
+
+func (s *service) EstimatePackagesPriceWithRoute(route *types.OsrmApiResponse) []*domain.RideFareModel {
+	// Implementation for estimating package prices based on the route
+	baseFares := getBasesFare()
+	estimatedFares := make([]*domain.RideFareModel, len(baseFares))
+
+	for i, f := range baseFares {
+		estimatedFares[i] = estimateFareRoute(f, route)
+	}
+
+	return estimatedFares
+}
+
+func (s *service) GenerateTripFares(ctx context.Context, fares []*domain.RideFareModel, userID string) ([]*domain.RideFareModel, error) {
+	fares := make([]*domain.RideFareModel, len(fares))
+
+	for i, f := range fares {
+		id := primitive.NewObjectID()
+
+		fare := &domain.RideFareModel{
+			ID:                id,
+			UserID:            userID,
+			TotalPriceInCents: f.TotalPriceInCents,
+			PackageSlug:       f.PackageSlug,
+		}
+
+		//if err := s.repo.SaveRideFare()
+	}
+	return fares, nil
+}
+
+// utils functions
+func estimateFareRoute(fare *domain.RideFareModel, route *types.OsrmApiResponse) *domain.RideFareModel {
+	pricingCfg := tripTypes.DefaultPricingConfig()
+	carPackagePrice := fare.TotalPriceInCents
+	distanceInKm := route.Routes[0].Distance
+	durationInMin := route.Routes[0].Duration
+
+	distanceFare := distanceInKm * pricingCfg.PricePerUnitOfDistance
+	timeFare := durationInMin * pricingCfg.PricingPerMinute
+
+	totalPrice := carPackagePrice + distanceFare + timeFare
+
+	return &domain.RideFareModel{
+		TotalPriceInCents: totalPrice,
+		PackageSlug:       fare.PackageSlug,
+	}
+}
+
+func getBasesFare() []*domain.RideFareModel {
+	return []*domain.RideFareModel{
+		{
+			PackageSlug:       "suv",
+			TotalPriceInCents: 200,
+		},
+		{
+			PackageSlug:       "sedan",
+			TotalPriceInCents: 350,
+		},
+		{
+			PackageSlug:       "van",
+			TotalPriceInCents: 400,
+		},
+		{
+			PackageSlug:       "luxury",
+			TotalPriceInCents: 1000,
+		},
+	}
 }
