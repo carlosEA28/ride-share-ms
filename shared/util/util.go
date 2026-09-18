@@ -1,6 +1,8 @@
 package util
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // GetRandomAvatar returns a random avatar URL from the randomuser.me API
 func GetRandomAvatar(index int) string {
