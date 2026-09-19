@@ -10,9 +10,9 @@ import (
 	"ride-sharing/services/trip-service/internal/infrastructure/repository"
 	"ride-sharing/services/trip-service/internal/service"
 	"ride-sharing/shared/env"
+	"ride-sharing/shared/messaging"
 	"syscall"
 
-	amqp "github.com/rabbitmq/amqp091-go"
 	grpc_server "google.golang.org/grpc"
 )
 
@@ -39,12 +39,11 @@ func main() {
 	}
 
 	//RabbitMQ
-	conn, err := amqp.Dial(env.GetString("RABBITMQ_URI", "amqp://guest:guest@rabbitmq:5672/"))
+	rabbitmq, err := messaging.NewRabbitMQ(os.Getenv("RABBITMQ_URI"))
 	if err != nil {
-		log.Fatalf("failed to connect to RabbitMQ: %v", err)
-		return
+		log.Fatalf("failed to create RabbitMQ instance: %v", err)
 	}
-	defer conn.Close()
+	defer rabbitmq.CloseRabbitMQ(rabbitmq)
 
 	grpcServer := grpc_server.NewServer() // cria o servidor gRPC
 
