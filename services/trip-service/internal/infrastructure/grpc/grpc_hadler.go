@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"ride-sharing/services/trip-service/internal/domain"
+	"ride-sharing/services/trip-service/internal/infrastructure/events"
 	pb "ride-sharing/shared/proto/trip"
 	"ride-sharing/shared/types"
 
@@ -13,12 +14,14 @@ import (
 
 type GrpcHandler struct {
 	pb.UnimplementedTripServiceServer
-	service domain.TripService
+	service   domain.TripService
+	publisher *events.TripEventPublisher
 }
 
-func NewGrpcHandler(server *grpc.Server, service domain.TripService) *GrpcHandler {
+func NewGrpcHandler(server *grpc.Server, service domain.TripService, publisher *events.TripEventPublisher) *GrpcHandler {
 	handler := &GrpcHandler{
-		service: service,
+		service:   service,
+		publisher: publisher,
 	}
 
 	pb.RegisterTripServiceServer(server, handler)
@@ -76,7 +79,9 @@ func (h *GrpcHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest)
 		return nil, status.Errorf(codes.Internal, "failed to create the trip: %v", err)
 	}
 
-	// Add a comment at the end of the function to publish an event on the Async Comms module.
+	if err := h.publisher.PublishTripCreatedEvent(ctx, trip.ID.Hex(), userID, fareID); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to publish trip created event: %v", err)
+	}
 
 	return &pb.CreateTripResponse{
 		TripID: trip.ID.Hex(),

@@ -11,6 +11,11 @@ type previewTripRequest struct {
 	Destination types.Coordinate `json:"destination"`
 }
 
+type startTripRequest struct {
+	UserID     string `json:"userID"`
+	RideFareID string `json:"rideFareID"`
+}
+
 func (p *previewTripRequest) ToProto() *pb.PreviewTripRequest {
 	return &pb.PreviewTripRequest{
 		UserID: p.UserID,
@@ -22,5 +27,12 @@ func (p *previewTripRequest) ToProto() *pb.PreviewTripRequest {
 			Latitude:  p.Destination.Latitude,
 			Longitude: p.Destination.Longitude,
 		},
+	}
+}
+
+func (s *startTripRequest) ToProto() *pb.CreateTripRequest {
+	return &pb.CreateTripRequest{
+		UserID:     s.UserID,
+		RideFareID: s.RideFareID,
 	}
 }

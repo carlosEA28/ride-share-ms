@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"ride-sharing/services/trip-service/internal/infrastructure/events"
 	"ride-sharing/services/trip-service/internal/infrastructure/grpc"
 	"ride-sharing/services/trip-service/internal/infrastructure/repository"
 	"ride-sharing/services/trip-service/internal/service"
@@ -43,13 +44,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create RabbitMQ instance: %v", err)
 	}
-	defer rabbitmq.CloseRabbitMQ(rabbitmq)
+	defer rabbitmq.CloseRabbitMQ()
+
+	publisher := events.NewTripEventPublisher(rabbitmq)
 
 	grpcServer := grpc_server.NewServer() // cria o servidor gRPC
 
 	repo := repository.NewInmemRepository()
 	svc := service.NewService(repo)
-	grpc.NewGrpcHandler(grpcServer, svc)
+	grpc.NewGrpcHandler(grpcServer, svc, publisher)
 
 	log.Println("Starting gRPC Server [Trip Service] on port 9093") // registra a porta usada
 
