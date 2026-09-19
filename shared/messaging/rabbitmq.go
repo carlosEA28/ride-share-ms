@@ -21,8 +21,6 @@ func NewRabbitMQ(uri string) (*RabbitMQ, error) {
 	return rmq, nil
 }
 
-func (r *RabbitMQ) CloseRabbitMQ(rmq *RabbitMQ) {
-	if err != nil {
-		r.conn.Close()
-	}
+func (r *RabbitMQ) CloseRabbitMQ(rmq *RabbitMQ) error {
+	return r.conn.Close()
 }
