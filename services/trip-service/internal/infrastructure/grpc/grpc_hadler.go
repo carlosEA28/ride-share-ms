@@ -32,6 +32,9 @@ func (h *GrpcHandler) PreviewTrip(ctx context.Context, request *pb.PreviewTripRe
 
 	pickup := request.GetStartLocation()
 	destination := request.GetEndLocation()
+	if pickup == nil || destination == nil {
+		return nil, status.Error(codes.InvalidArgument, "start and end locations are required")
+	}
 
 	pickupCords := &types.Coordinate{
 		Latitude:  pickup.Latitude,

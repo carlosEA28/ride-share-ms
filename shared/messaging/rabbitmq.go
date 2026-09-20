@@ -4,8 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"ride-sharing/shared/contracts"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+)
+
+const (
+	TripExchange = "trip"
 )
 
 type RabbitMQ struct {
@@ -42,7 +47,7 @@ func (r *RabbitMQ) ConsumeMessages(queueName string, handler MessageHandler) err
 	msgs, err := r.Channel.Consume(
 		queueName, // queue
 		"",        // consumer
-		true,      // auto-ack
+		false,     // auto-ack
 		false,     // exclusive
 		false,     // no-local
 		false,     // no-wait
@@ -61,6 +66,9 @@ func (r *RabbitMQ) ConsumeMessages(queueName string, handler MessageHandler) err
 			if err := handler(ctx, msg); err != nil {
 				log.Fatalf("failed to handle the message: %v", err)
 			}
+
+			// Acknowledge the message
+			_ = msg.Ack(false)
 		}
 	}()
 
@@ -68,11 +76,12 @@ func (r *RabbitMQ) ConsumeMessages(queueName string, handler MessageHandler) err
 }
 
 func (r *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, message string) error {
+	log.Printf("Publishing message with routing key: %s", routingKey)
 	return r.Channel.PublishWithContext(ctx,
-		"",      // exchange
-		"hello", // routing key
-		false,   // mandatory
-		false,   // immediate
+		TripExchange, // exchange
+		routingKey,   // routing key
+		false,        // mandatory
+		false,        // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
 			Body:        []byte(message),
@@ -80,16 +89,23 @@ func (r *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, messag
 }
 
 func (r *RabbitMQ) setupExchangesAndQueues() error {
-	_, err := r.Channel.QueueDeclare(
-		"hello", // name
-		true,    // durable
-		false,   // delete when unused
-		false,   // exclusive
-		false,   // no-wait
-		nil,     // arguments
+
+	// Declaracao da Exchange
+	err := r.Channel.ExchangeDeclare(
+		TripExchange, // name
+		"topic",      // type
+		true,         // durable
+		false,        // auto-delete
+		false,        // internal
+		false,        // no-wait
+		nil,          // arguments
 	)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("failed to setup exchange: %s", err)
+	}
+
+	if err = r.declareAndBindQueue(FindAvailableDriversQueue, []string{contracts.TripEventCreated, contracts.TripEventDriverNotInterested}, TripExchange); err != nil {
+		return fmt.Errorf("failed to setup queue: %s", err)
 	}
 
 	return nil
@@ -102,4 +118,37 @@ func (r *RabbitMQ) Close() {
 	if r.Channel != nil {
 		r.Channel.Close()
 	}
+}
+
+// Helper Functions
+func (r *RabbitMQ) declareAndBindQueue(queueName string, messageTypes []string, exchange string) error {
+	// Declaracao da fila
+	q, err := r.Channel.QueueDeclare(
+		queueName, // name
+		true,      // durable
+		false,     // delete when unused
+		false,     // exclusive
+		false,     // no-wait
+		nil,       // arguments
+	)
+	if err != nil {
+		log.Fatalf("failed to setup queue: %s", err)
+	}
+
+	// Bind da fila com a exchange
+	// O loop permite associar a mesma fila a vários tipos de mensagem (routing keys).
+	for _, messageType := range messageTypes {
+		err = r.Channel.QueueBind(
+			q.Name,      // queue
+			messageType, // routing key
+			exchange,    // exchange
+			false,       // no-wait
+			nil,         // arguments
+		)
+		if err != nil {
+			log.Fatalf("failed to bind queue: %s", err)
+		}
+	}
+
+	return nil
 }

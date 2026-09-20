@@ -64,11 +64,19 @@ func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coord
 		return nil, fmt.Errorf("Failed to read the response: %v", err)
 	}
 
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("OSRM API returned status %s: %s", resp.Status, string(body))
+	}
+
 	log.Printf("GOT RESPONSE FROM API %s", string(body))
 
 	var routeResponse types.OsrmApiResponse
 	if err := json.Unmarshal(body, &routeResponse); err != nil {
 		return nil, fmt.Errorf("Failed to parse the response: %v", err)
+	}
+
+	if len(routeResponse.Routes) == 0 {
+		return nil, fmt.Errorf("OSRM API returned no routes")
 	}
 
 	return &routeResponse, nil
