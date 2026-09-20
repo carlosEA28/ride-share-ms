@@ -44,7 +44,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create RabbitMQ instance: %v", err)
 	}
-	defer rabbitmq.CloseRabbitMQ()
+	defer rabbitmq.Close()
 
 	publisher := events.NewTripEventPublisher(rabbitmq)
 

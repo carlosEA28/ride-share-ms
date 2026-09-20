@@ -79,8 +79,8 @@ func (h *GrpcHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest)
 		return nil, status.Errorf(codes.Internal, "failed to create the trip: %v", err)
 	}
 
-	if err := h.publisher.PublishTripCreatedEvent(ctx, trip.ID.Hex(), userID, fareID); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to publish trip created event: %v", err)
+	if err := h.publisher.PublishTripCreated(ctx); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to publish the trip created event: %v", err)
 	}
 
 	return &pb.CreateTripResponse{

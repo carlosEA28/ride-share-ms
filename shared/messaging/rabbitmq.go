@@ -3,6 +3,7 @@ package messaging
 import (
 	"context"
 	"fmt"
+	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -11,6 +12,8 @@ type RabbitMQ struct {
 	conn    *amqp.Connection
 	Channel *amqp.Channel
 }
+
+type MessageHandler func(context.Context, amqp.Delivery) error
 
 func NewRabbitMQ(uri string) (*RabbitMQ, error) {
 	conn, err := amqp.Dial(uri)
@@ -27,7 +30,7 @@ func NewRabbitMQ(uri string) (*RabbitMQ, error) {
 	rmq := &RabbitMQ{conn: conn, Channel: channel}
 
 	if err := rmq.setupExchangesAndQueues(); err != nil {
-		rmq.CloseRabbitMQ()
+		rmq.Close()
 
 		return nil, fmt.Errorf("failed to setup exchanges and queues: %s", err)
 	}
@@ -35,42 +38,67 @@ func NewRabbitMQ(uri string) (*RabbitMQ, error) {
 	return rmq, nil
 }
 
-func (r *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, message string) error {
-	_, err := r.Channel.QueueDeclare(
-		routingKey,
-		true,
-		false,
-		false,
-		false,
-		nil,
+func (r *RabbitMQ) ConsumeMessages(queueName string, handler MessageHandler) error {
+	msgs, err := r.Channel.Consume(
+		queueName, // queue
+		"",        // consumer
+		true,      // auto-ack
+		false,     // exclusive
+		false,     // no-local
+		false,     // no-wait
+		nil,       // args
 	)
 	if err != nil {
-		return fmt.Errorf("failed to declare queue %q: %s", routingKey, err)
+		return err
 	}
 
-	return r.Channel.PublishWithContext(ctx,
-		"",
-		routingKey,
-		false,
-		false,
-		amqp.Publishing{
-			ContentType:  "application/json",
-			Body:         []byte(message),
-			DeliveryMode: amqp.Persistent,
-		})
-}
+	ctx := context.Background()
 
-func (r *RabbitMQ) setupExchangesAndQueues() error {
+	go func() {
+		for msg := range msgs {
+			log.Printf("Received a message: %s", msg.Body)
+
+			if err := handler(ctx, msg); err != nil {
+				log.Fatalf("failed to handle the message: %v", err)
+			}
+		}
+	}()
 
 	return nil
 }
 
-func (r *RabbitMQ) CloseRabbitMQ() {
+func (r *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, message string) error {
+	return r.Channel.PublishWithContext(ctx,
+		"",      // exchange
+		"hello", // routing key
+		false,   // mandatory
+		false,   // immediate
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte(message),
+		})
+}
 
+func (r *RabbitMQ) setupExchangesAndQueues() error {
+	_, err := r.Channel.QueueDeclare(
+		"hello", // name
+		true,    // durable
+		false,   // delete when unused
+		false,   // exclusive
+		false,   // no-wait
+		nil,     // arguments
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return nil
+}
+
+func (r *RabbitMQ) Close() {
 	if r.conn != nil {
 		r.conn.Close()
 	}
-
 	if r.Channel != nil {
 		r.Channel.Close()
 	}
