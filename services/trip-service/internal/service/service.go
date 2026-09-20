@@ -44,6 +44,7 @@ func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*
 		UserID:   createdTrip.UserID,
 		Status:   createdTrip.Status,
 		RideFare: createdTrip.RideFare,
+		Driver:   createdTrip.Driver,
 	}, nil
 }
 

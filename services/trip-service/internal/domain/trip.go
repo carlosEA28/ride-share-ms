@@ -16,12 +16,58 @@ type TripModel struct {
 	Driver   *pb.TripDriver
 }
 
+func (t *TripModel) ToProto() *pb.Trip {
+	if t == nil {
+		return nil
+	}
+
+	trip := &pb.Trip{
+		Id:     t.ID.Hex(),
+		UserID: t.UserID,
+		Status: t.Status,
+		Driver: t.Driver,
+	}
+
+	if t.RideFare != nil {
+		trip.SelectedFare = t.RideFare.ToProto()
+		if t.RideFare.Route != nil {
+			trip.Route = t.RideFare.Route.ToProto()
+		}
+	}
+
+	return trip
+}
+
 type Trip struct {
 	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	UserID   string             `json:"userID"`
 	Status   string             `json:"status"`
 	RideFare *RideFareModel     `json:"rideFare"`
+	Driver   *pb.TripDriver     `json:"driver"`
 }
+
+func (t *Trip) ToProto() *pb.Trip {
+	if t == nil {
+		return nil
+	}
+
+	trip := &pb.Trip{
+		Id:     t.ID.Hex(),
+		UserID: t.UserID,
+		Status: t.Status,
+		Driver: t.Driver,
+	}
+
+	if t.RideFare != nil {
+		trip.SelectedFare = t.RideFare.ToProto()
+		if t.RideFare.Route != nil {
+			trip.Route = t.RideFare.Route.ToProto()
+		}
+	}
+
+	return trip
+}
+
 type TripRepository interface {
 	CreateTrip(ctx context.Context, fare *TripModel) (*TripModel, error)
 	SaveRideFare(ctx context.Context, rideFare *RideFareModel) error
