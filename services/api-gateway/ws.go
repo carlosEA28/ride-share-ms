@@ -5,19 +5,16 @@ import (
 	"net/http"
 	"ride-sharing/services/api-gateway/grpc_clients"
 	"ride-sharing/shared/contracts"
+	"ride-sharing/shared/messaging"
 	"ride-sharing/shared/proto/driver"
-
-	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
+var (
+	connManager = messaging.NewConnectionManager()
+)
 
 func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := connManager.Upgrader(w, r)
 	if err != nil {
 		log.Println(err)
 		return
@@ -44,7 +41,7 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := connManager.Upgrader(w, r)
 	if err != nil {
 		log.Println(err)
 		return
@@ -58,21 +55,30 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//adiciona conection no manager
+	connManager.Add(userID, conn)
+
 	packageSlug := r.URL.Query().Get("packageSlug")
 	if packageSlug == "" {
 		log.Println("Package Slug is empty")
 		return
 	}
 
+	//adiciona conection no manager
+	connManager.Add(userID, conn)
+
 	ctx := r.Context()
+
 	driverService, err := grpc_clients.NewDriverServiceClient()
 	if err != nil {
 		log.Println(err)
 	}
 
 	defer func() {
+		defer connManager.Remove(userID)
 		driverService.Client.UnregisterDriver(ctx, &driver.RegisterDriverRequest{DriverID: userID, PackageSlug: packageSlug})
 		driverService.Close()
+
 		log.Println("Unregistered Driver: ", userID)
 	}()
 
@@ -82,12 +88,10 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg := contracts.WSMessage{
-		Type: "driver.cmd.register",
+	if err := connManager.SendMessage(userID, contracts.WSMessage{
+		Type: contracts.DriverCmdRegister,
 		Data: driverData.Driver,
-	}
-
-	if err := conn.WriteJSON(msg); err != nil {
+	}); err != nil {
 		log.Println(err)
 		return
 	}
