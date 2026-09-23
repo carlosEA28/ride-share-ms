@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"ride-sharing/services/trip-service/internal/domain"
+	pbd "ride-sharing/shared/proto/driver"
+	pb "ride-sharing/shared/proto/trip"
 )
 
 type InmemRepository struct {
@@ -42,5 +44,24 @@ func (r *InmemRepository) CreateTrip(ctx context.Context, trip *domain.TripModel
 
 func (r *InmemRepository) SaveRideFare(ctx context.Context, f *domain.RideFareModel) error {
 	r.rideFares[f.ID.Hex()] = f
+	return nil
+}
+
+func (r *InmemRepository) UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error {
+	trip, ok := r.trips[tripID]
+	if !ok {
+		return fmt.Errorf("trip not found with ID: %s", tripID)
+	}
+
+	trip.Status = status
+
+	if driver != nil {
+		trip.Driver = &pb.TripDriver{
+			Id:             driver.Id,
+			Name:           driver.Name,
+			CarPlate:       driver.CarPlate,
+			ProfilePicture: driver.ProfilePicture,
+		}
+	}
 	return nil
 }

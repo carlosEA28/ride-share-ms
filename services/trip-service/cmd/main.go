@@ -34,6 +34,9 @@ func main() {
 		cancel()                                              // cancela o contexto quando receber sinal
 	}()
 
+	repo := repository.NewInmemRepository()
+	svc := service.NewService(repo)
+
 	listener, err := net.Listen("tcp", GrpcAddr) // abre a porta do servidor gRPC
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err) // encerra se não conseguir abrir a porta
@@ -48,10 +51,12 @@ func main() {
 
 	publisher := events.NewTripEventPublisher(rabbitmq)
 
+	// inicia o consumer do driver
+	driverConsumer := events.NewDriverConsumer(rabbitmq, svc)
+	go driverConsumer.Listen()
+
 	grpcServer := grpc_server.NewServer() // cria o servidor gRPC
 
-	repo := repository.NewInmemRepository()
-	svc := service.NewService(repo)
 	grpc.NewGrpcHandler(grpcServer, svc, publisher)
 
 	log.Println("Starting gRPC Server [Trip Service] on port 9093") // registra a porta usada
