@@ -112,7 +112,20 @@ func (r *RabbitMQ) setupExchangesAndQueues() error {
 		return fmt.Errorf("failed to setup exchange: %s", err)
 	}
 
+	//BINDS
 	if err = r.declareAndBindQueue(FindAvailableDriversQueue, []string{contracts.TripEventCreated, contracts.TripEventDriverNotInterested}, TripExchange); err != nil {
+		return fmt.Errorf("failed to setup queue: %s", err)
+	}
+
+	if err = r.declareAndBindQueue(DriverCmdTripRequestQueue, []string{contracts.DriverCmdTripRequest}, TripExchange); err != nil {
+		return fmt.Errorf("failed to setup queue: %s", err)
+	}
+
+	if err = r.declareAndBindQueue(DriverTripResponseQueue, []string{contracts.DriverCmdTripAccept, contracts.DriverCmdTripDecline}, TripExchange); err != nil {
+		return fmt.Errorf("failed to setup queue: %s", err)
+	}
+
+	if err = r.declareAndBindQueue(NotifyDriverNoDriversFoundQueue, []string{contracts.TripEventNoDriversFound}, TripExchange); err != nil {
 		return fmt.Errorf("failed to setup queue: %s", err)
 	}
 

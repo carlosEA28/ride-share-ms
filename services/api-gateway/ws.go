@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"ride-sharing/services/api-gateway/grpc_clients"
@@ -13,7 +14,7 @@ var (
 	connManager = messaging.NewConnectionManager()
 )
 
-func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
+func handleRidersWebSocket(w http.ResponseWriter, r *http.Request, rb *messaging.RabbitMQ) {
 	conn, err := connManager.Upgrader(w, r)
 	if err != nil {
 		log.Println(err)
@@ -28,6 +29,19 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//inicia consumer das filas
+	queues := []string{
+		messaging.NotifyDriverNoDriversFoundQueue,
+	}
+
+	//consome elas
+	for _, queue := range queues {
+		consumer := messaging.NewQueueConsumer(rb, connManager, queue)
+		if err := consumer.Start(); err != nil {
+			log.Println(err)
+		}
+	}
+
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
@@ -40,7 +54,7 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
+func handleDriversWebSocket(w http.ResponseWriter, r *http.Request, rb *messaging.RabbitMQ) {
 	conn, err := connManager.Upgrader(w, r)
 	if err != nil {
 		log.Println(err)
@@ -96,6 +110,19 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//inicia consumer das filas
+	queues := []string{
+		messaging.DriverCmdTripRequestQueue,
+	}
+
+	//consome elas
+	for _, queue := range queues {
+		consumer := messaging.NewQueueConsumer(rb, connManager, queue)
+		if err := consumer.Start(); err != nil {
+			log.Println(err)
+		}
+	}
+
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
@@ -103,6 +130,31 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		log.Printf("Received Message: %s", message)
+		type DriverMessage struct {
+			Type string          `json:"type"`
+			Data json.RawMessage `json:"data"`
+		}
+
+		var driverMsg DriverMessage
+		if err := json.Unmarshal(message, &driverMsg); err != nil {
+			log.Println(err)
+			continue
+		}
+
+		switch driverMsg.Type {
+		case contracts.DriverCmdLocation:
+			//Handle driver location in the future
+			continue
+		case contracts.DriverCmdTripAccept, contracts.DriverCmdTripDecline:
+			if err := rb.PublishMessage(ctx, driverMsg.Type, contracts.AmqpMessage{
+				OwnerID: userID,
+				Data:    driverMsg.Data,
+			}); err != nil {
+				log.Printf("Error publishing message: %v", err)
+			}
+		default:
+			log.Printf("Unknown message type: %s", driverMsg.Type)
+
+		}
 	}
 }
