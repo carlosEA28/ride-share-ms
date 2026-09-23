@@ -12,8 +12,10 @@ import (
 	"ride-sharing/services/trip-service/internal/service"
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
+	"ride-sharing/shared/tracing"
 	"syscall"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	grpc_server "google.golang.org/grpc"
 )
 
@@ -34,6 +36,27 @@ func main() {
 		cancel()                                              // cancela o contexto quando receber sinal
 	}()
 
+	//inicia o tracing
+	tracerCfg := tracing.Config{
+		ServiceName: "trip-service",
+		Environment: env.GetString("ENVIRONMENT", "development"),
+		JaegerURL:   env.GetString("JAEGER_ENDPOINT", env.GetString("JAEGER_URL", "http://jaeger:14268/api/traces")),
+	}
+
+	shutdown, err := tracing.InitTracer(tracerCfg)
+	if err != nil {
+		log.Fatalf("Error initializing tracer: %v", err)
+	}
+
+	defer shutdown(ctx)
+	defer cancel()
+
+	defer func() {
+		if err := shutdown(context.Background()); err != nil {
+			log.Printf("Error shutting down tracer: %v", err)
+		}
+	}()
+
 	repo := repository.NewInmemRepository()
 	svc := service.NewService(repo)
 
@@ -48,14 +71,13 @@ func main() {
 		log.Fatalf("failed to create RabbitMQ instance: %v", err)
 	}
 	defer rabbitmq.Close()
-
 	publisher := events.NewTripEventPublisher(rabbitmq)
 
 	// inicia o consumer do driver
 	driverConsumer := events.NewDriverConsumer(rabbitmq, svc)
 	go driverConsumer.Listen()
 
-	grpcServer := grpc_server.NewServer() // cria o servidor gRPC
+	grpcServer := grpc_server.NewServer(grpc_server.StatsHandler(otelgrpc.NewServerHandler())) // cria o servidor gRPC
 
 	grpc.NewGrpcHandler(grpcServer, svc, publisher)
 

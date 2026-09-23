@@ -14,6 +14,7 @@ import (
 	"ride-sharing/shared/types"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type service struct {
@@ -54,7 +55,12 @@ func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coord
 
 	log.Printf("Fetching from OSRM API: URL: %s", url)
 
-	resp, err := http.Get(url)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OSRM request: %w", err)
+	}
+
+	resp, err := otelhttp.DefaultClient.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch route from OSRM API: %v", err)
 	}

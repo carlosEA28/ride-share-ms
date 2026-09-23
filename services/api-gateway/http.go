@@ -34,7 +34,7 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	tripPreview, err := tripService.Client.PreviewTrip(r.Context(), reqBody.ToProto())
 	if err != nil {
 		log.Printf("failed to preview trip: %v", err)
-		http.Error(w, "failed to preview trip", http.StatusBadGateway)
+		http.Error(w, "failed to preview trip: "+err.Error(), http.StatusBadGateway)
 		return
 	}
 

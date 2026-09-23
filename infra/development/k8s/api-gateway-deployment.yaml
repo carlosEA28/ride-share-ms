@@ -25,6 +25,13 @@ spec:
               memory: "128Mi"
               cpu: "125m"
           env:
+            - name: TRIP_SERVICE_URL
+              value: "trip-service:9093"
+            - name: JAEGER_ENDPOINT
+              valueFrom:
+                  configMapKeyRef:
+                    key: JAEGER_ENDPOINT
+                    name: app-config
             # Accessing an env variable from the app-config config map
             - name: GATEWAY_HTTP_ADDR
               valueFrom:

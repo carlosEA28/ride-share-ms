@@ -117,3 +117,8 @@ k8s_yaml('./infra/development/k8s/web-deployment.yaml')
 k8s_resource('web', port_forwards=3000, labels="frontend")
 
 ### End of Web Frontend ###
+
+### Jaeger ###
+k8s_yaml('./infra/development/k8s/jaeger.yaml')
+k8s_resource('jaeger', port_forwards=['16686:16686', '14268:14268'], labels="tooling")
+### End of Jaeger ###

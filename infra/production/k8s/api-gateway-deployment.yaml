@@ -18,6 +18,8 @@ spec:
           ports:
             - containerPort: 8081
           env:
+            - name: TRIP_SERVICE_URL
+              value: "trip-service:9093"
             - name: GATEWAY_HTTP_ADDR
               valueFrom:
                 configMapKeyRef:

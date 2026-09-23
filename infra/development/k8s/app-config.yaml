@@ -5,3 +5,4 @@ metadata:
 data:
   ENVIRONMENT: "development"
   GATEWAY_HTTP_ADDR: ":8081"
+  JAEGER_ENDPOINT: "http://jaeger:14268/api/traces"

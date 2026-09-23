@@ -1,10 +1,12 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"ride-sharing/services/trip-service/internal/domain"
+	"ride-sharing/shared/tracing"
 	"ride-sharing/shared/types"
 )
 
@@ -18,14 +20,17 @@ type previewTripRequest struct {
 	Destination types.Coordinate `json:"destination"`
 }
 
+var tracer = tracing.GetTracer("api-gateway")
+
 func (s *HttpHandler) HandleTripPreview(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracer.Start(context.Background(), "HandleTripPreview")
+	defer span.End()
+
 	var reqBody previewTripRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		http.Error(w, "failed to parse JSON data", http.StatusBadRequest)
 		return
 	}
-
-	ctx := r.Context()
 
 	t, err := s.Service.GetRoute(ctx, &reqBody.Pickup, &reqBody.Destination)
 	if err != nil {
