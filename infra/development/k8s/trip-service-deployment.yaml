@@ -26,6 +26,11 @@ spec:
               memory: "128Mi"
               cpu: "200m"
           env:
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: uri
             - name: JAEGER_ENDPOINT
               valueFrom:
                 configMapKeyRef:
