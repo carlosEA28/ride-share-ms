@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log"
 	"ride-sharing/shared/contracts"
+	"ride-sharing/shared/retry"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 const (
-	TripExchange = "trip"
+	TripExchange       = "trip"
+	DeadLetterExchange = "dlx"
 )
 
 type RabbitMQ struct {
@@ -22,23 +24,32 @@ type RabbitMQ struct {
 type MessageHandler func(context.Context, amqp.Delivery) error
 
 func NewRabbitMQ(uri string) (*RabbitMQ, error) {
-	conn, err := amqp.Dial(uri)
+	var rmq *RabbitMQ
+
+	cfg := retry.DefaultConfig()
+	err := retry.WithBackoff(context.Background(), cfg, func() error {
+		conn, err := amqp.Dial(uri)
+		if err != nil {
+			return fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+		}
+
+		channel, err := conn.Channel()
+		if err != nil {
+			conn.Close()
+			return fmt.Errorf("failed to create channel: %w", err)
+		}
+
+		rmq = &RabbitMQ{conn: conn, Channel: channel}
+
+		if err := rmq.setupExchangesAndQueues(); err != nil {
+			rmq.Close()
+			return fmt.Errorf("failed to setup exchanges and queues: %w", err)
+		}
+
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RabbitMQ: %s", err)
-	}
-
-	channel, err := conn.Channel()
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("failed to create channel: %s", err)
-	}
-
-	rmq := &RabbitMQ{conn: conn, Channel: channel}
-
-	if err := rmq.setupExchangesAndQueues(); err != nil {
-		rmq.Close()
-
-		return nil, fmt.Errorf("failed to setup exchanges and queues: %s", err)
+		return nil, err
 	}
 
 	return rmq, nil
@@ -59,12 +70,16 @@ func (r *RabbitMQ) ConsumeMessages(queueName string, handler MessageHandler) err
 	}
 
 	ctx := context.Background()
+	cfg := retry.DefaultConfig()
 
 	go func() {
 		for msg := range msgs {
 			log.Printf("Received a message: %s", msg.Body)
 
-			if err := handler(ctx, msg); err != nil {
+			err := retry.WithBackoff(ctx, cfg, func() error {
+				return handler(ctx, msg)
+			})
+			if err != nil {
 				log.Printf("failed to handle the message: %v", err)
 				if nackErr := msg.Nack(false, false); nackErr != nil {
 					log.Printf("failed to reject message: %v", nackErr)
@@ -101,6 +116,11 @@ func (r *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, messag
 }
 
 func (r *RabbitMQ) setupExchangesAndQueues() error {
+
+	// First setup the DLQ exchange and queue
+	if err := r.setupDeadLetterExchange(); err != nil {
+		return err
+	}
 
 	// Declaracao da Exchange
 	err := r.Channel.ExchangeDeclare(
@@ -155,6 +175,12 @@ func (r *RabbitMQ) Close() {
 
 // Helper Functions
 func (r *RabbitMQ) declareAndBindQueue(queueName string, messageTypes []string, exchange string) error {
+
+	// Add dead letter configuration
+	args := amqp.Table{
+		"x-dead-letter-exchange": DeadLetterExchange,
+	}
+
 	// Declaracao da fila
 	q, err := r.Channel.QueueDeclare(
 		queueName, // name
@@ -162,7 +188,7 @@ func (r *RabbitMQ) declareAndBindQueue(queueName string, messageTypes []string, 
 		false,     // delete when unused
 		false,     // exclusive
 		false,     // no-wait
-		nil,       // arguments
+		args,      // arguments
 	)
 	if err != nil {
 		log.Fatalf("failed to setup queue: %s", err)
@@ -181,6 +207,49 @@ func (r *RabbitMQ) declareAndBindQueue(queueName string, messageTypes []string, 
 		if err != nil {
 			log.Fatalf("failed to bind queue: %s", err)
 		}
+	}
+
+	return nil
+}
+
+func (r *RabbitMQ) setupDeadLetterExchange() error {
+	// Declare the dead letter exchange
+	err := r.Channel.ExchangeDeclare(
+		DeadLetterExchange,
+		"topic",
+		true,  // durable
+		false, // auto-deleted
+		false, // internal
+		false, // no-wait
+		nil,   // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare dead letter exchange: %v", err)
+	}
+
+	// Declare the dead letter queue
+	q, err := r.Channel.QueueDeclare(
+		DeadLetterQueue,
+		true,  // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare dead letter queue: %v", err)
+	}
+
+	// Bind the queue to the exchange with a wildcard routing key
+	err = r.Channel.QueueBind(
+		q.Name,
+		"#", // wildcard routing key to catch all messages
+		DeadLetterExchange,
+		false,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to bind dead letter queue: %v", err)
 	}
 
 	return nil

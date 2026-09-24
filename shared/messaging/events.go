@@ -11,6 +11,7 @@ const (
 	DriverTripResponseQueue         = "driver_trip_response"
 	NotifyDriverNoDriversFoundQueue = "notify_driver_no_drivers_found"
 	NotifyDriverAssignQueue         = "notify_driver_assign"
+	DeadLetterQueue                 = "dead_letter_queue"
 )
 
 type TripEventData struct {
