@@ -8,8 +8,9 @@ import (
 	"ride-sharing/shared/messaging"
 	"ride-sharing/shared/tracing"
 
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"ride-sharing/shared/env"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 var (
@@ -48,14 +49,14 @@ func main() {
 	}
 	defer rabbitmq.Close()
 
-	http.HandleFunc("/trip/preview", enableCors(handleTripPreview))
-	http.HandleFunc("/trip/start", enableCors(handleTripStart))
-	http.HandleFunc("/ws/drivers", func(w http.ResponseWriter, r *http.Request) {
+	http.Handle("/trip/preview", tracing.WrapperHandlerFunc(enableCors(handleTripPreview), "/trip/preview"))
+	http.Handle("/trip/start", tracing.WrapperHandlerFunc(enableCors(handleTripStart), "/trip/start"))
+	http.Handle("/ws/drivers", tracing.WrapperHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleDriversWebSocket(w, r, rabbitmq)
-	})
-	http.HandleFunc("/ws/riders", func(w http.ResponseWriter, r *http.Request) {
+	}, "/ws/drivers"))
+	http.Handle("/ws/riders", tracing.WrapperHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleRidersWebSocket(w, r, rabbitmq)
-	})
+	}, "/ws/riders"))
 
 	handler := otelhttp.NewHandler(http.DefaultServeMux, "api-gateway")
 	if err := http.ListenAndServe(httpAddr, handler); err != nil {
