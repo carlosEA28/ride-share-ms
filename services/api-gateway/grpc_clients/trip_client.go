@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 	pb "ride-sharing/shared/proto/trip"
+	"ride-sharing/shared/tracing"
 
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -21,10 +21,11 @@ func NewTripServiceClient() (*tripServiceClient, error) {
 		tripServiceURL = "localhost:9093"
 	}
 
+	dialOptions := append(tracing.DialOptionsWithTracing(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+
 	conn, err := grpc.NewClient(
 		tripServiceURL,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		dialOptions...,
 	)
 	if err != nil {
 		return nil, err

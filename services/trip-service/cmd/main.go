@@ -15,7 +15,6 @@ import (
 	"ride-sharing/shared/tracing"
 	"syscall"
 
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	grpc_server "google.golang.org/grpc"
 )
 
@@ -77,7 +76,7 @@ func main() {
 	driverConsumer := events.NewDriverConsumer(rabbitmq, svc)
 	go driverConsumer.Listen()
 
-	grpcServer := grpc_server.NewServer(grpc_server.StatsHandler(otelgrpc.NewServerHandler())) // cria o servidor gRPC
+	grpcServer := grpc_server.NewServer(tracing.WithTracingInterceptors()...) // cria o servidor gRPC
 
 	grpc.NewGrpcHandler(grpcServer, svc, publisher)
 
