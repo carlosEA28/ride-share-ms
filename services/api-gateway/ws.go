@@ -29,6 +29,9 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request, rb *messaging
 		return
 	}
 
+	connManager.Add(userID, conn)
+	defer connManager.Remove(userID)
+
 	//inicia consumer das filas
 	queues := []string{
 		messaging.NotifyDriverNoDriversFoundQueue,
