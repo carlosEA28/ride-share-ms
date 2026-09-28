@@ -86,6 +86,9 @@ func main() {
 	driverConsumer := events.NewDriverConsumer(rabbitmq, svc)
 	go driverConsumer.Listen()
 
+	paymentConsumer := events.NewPaymentConsumer(rabbitmq, svc)
+	go paymentConsumer.Listen()
+
 	grpcServer := grpc_server.NewServer(tracing.WithTracingInterceptors()...) // cria o servidor gRPC
 
 	grpc.NewGrpcHandler(grpcServer, svc, publisher)

@@ -57,6 +57,9 @@ func main() {
 	http.Handle("/ws/riders", tracing.WrapperHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleRidersWebSocket(w, r, rabbitmq)
 	}, "/ws/riders"))
+	http.Handle("/webhook/stripe", tracing.WrapperHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleStripeWebhook(w, r, rabbitmq)
+	}, "/webhook/stripe"))
 
 	handler := otelhttp.NewHandler(http.DefaultServeMux, "api-gateway")
 	if err := http.ListenAndServe(httpAddr, handler); err != nil {
