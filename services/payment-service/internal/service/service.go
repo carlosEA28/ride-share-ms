@@ -15,8 +15,10 @@ type paymentService struct {
 	paymentProcessor domain.PaymentProcessor
 }
 
-func NewPaymentService() domain.Service {
-	return &paymentService{}
+func NewPaymentService(paymentProcessor domain.PaymentProcessor) domain.Service {
+	return &paymentService{
+		paymentProcessor: paymentProcessor,
+	}
 }
 
 func (s *paymentService) CreatePaymentSession(
