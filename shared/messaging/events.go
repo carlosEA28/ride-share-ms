@@ -23,8 +23,8 @@ type TripEventData struct {
 
 type DriverTripResponse struct {
 	Driver  *pbd.Driver `json:"driver"`
-	TripId  string      `json:"trip_id"`
-	RiderId string      `json:"rider_id"`
+	TripId  string      `json:"tripID"`
+	RiderId string      `json:"riderID"`
 }
 
 type PaymentEventSessionCreatedData struct {
