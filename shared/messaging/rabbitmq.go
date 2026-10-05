@@ -9,6 +9,10 @@ import (
 	"ride-sharing/shared/retry"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -69,26 +73,48 @@ func (r *RabbitMQ) ConsumeMessages(queueName string, handler MessageHandler) err
 		return err
 	}
 
-	ctx := context.Background()
 	cfg := retry.DefaultConfig()
+	tracer := otel.GetTracerProvider().Tracer("messaging")
 
 	go func() {
 		for msg := range msgs {
 			log.Printf("Received a message: %s", msg.Body)
 
+			// Extract trace context from message headers
+			headers := make(map[string]interface{})
+			for k, v := range msg.Headers {
+				headers[k] = v
+			}
+			ctx := ExtractHeaders(context.Background(), headers)
+
+			// Start consumer span
+			ctx, span := tracer.Start(ctx, "consume",
+				trace.WithSpanKind(trace.SpanKindConsumer),
+				trace.WithAttributes(
+					attribute.String("messaging.system", "rabbitmq"),
+					attribute.String("messaging.destination", queueName),
+					attribute.String("messaging.destination_kind", "queue"),
+					attribute.String("messaging.operation", "consume"),
+				),
+			)
+
 			err := retry.WithBackoff(ctx, cfg, func() error {
 				return handler(ctx, msg)
 			})
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
 				log.Printf("failed to handle the message: %v", err)
 				if nackErr := msg.Nack(false, false); nackErr != nil {
 					log.Printf("failed to reject message: %v", nackErr)
 				}
+				span.End()
 				continue
 			}
 
 			// Acknowledge the message
 			_ = msg.Ack(false)
+			span.End()
 		}
 	}()
 
@@ -103,6 +129,24 @@ func (r *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, messag
 		return fmt.Errorf("failed to marshal message: %v", err)
 	}
 
+	// Start producer span
+	tracer := otel.GetTracerProvider().Tracer("messaging")
+	ctx, span := tracer.Start(ctx, "publish",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "rabbitmq"),
+			attribute.String("messaging.destination", TripExchange),
+			attribute.String("messaging.destination_kind", "topic"),
+			attribute.String("messaging.operation", "publish"),
+			attribute.String("messaging.routing_key", routingKey),
+		),
+	)
+	defer span.End()
+
+	// Inject trace context into headers
+	headers := make(map[string]interface{})
+	InjectHeaders(ctx, headers)
+
 	return r.Channel.PublishWithContext(ctx,
 		TripExchange, // exchange
 		routingKey,   // routing key
@@ -112,6 +156,7 @@ func (r *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, messag
 			ContentType:  "text/plain",
 			Body:         jsonMsg,
 			DeliveryMode: amqp.Persistent,
+			Headers:      headers,
 		})
 }
 

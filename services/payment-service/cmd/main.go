@@ -13,6 +13,7 @@ import (
 	"ride-sharing/services/payment-service/pkg/types"
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
+	"ride-sharing/shared/tracing"
 )
 
 var GrpcAddr = env.GetString("GRPC_ADDR", ":9004")
@@ -28,6 +29,24 @@ func main() {
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		<-sigCh
 		cancel()
+	}()
+
+	// Initialize tracing
+	tracerCfg := tracing.Config{
+		ServiceName: "payment-service",
+		Environment: env.GetString("ENVIRONMENT", "development"),
+		JaegerURL:   env.GetString("JAEGER_ENDPOINT", env.GetString("JAEGER_URL", "http://jaeger:14268/api/traces")),
+	}
+
+	shutdown, err := tracing.InitTracer(tracerCfg)
+	if err != nil {
+		log.Fatalf("Error initializing tracer: %v", err)
+	}
+
+	defer func() {
+		if err := shutdown(context.Background()); err != nil {
+			log.Printf("Error shutting down tracer: %v", err)
+		}
 	}()
 
 	appURL := env.GetString("APP_URL", "http://localhost:3000")
